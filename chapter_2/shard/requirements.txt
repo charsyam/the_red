@@ -1,0 +1,6 @@
+fastapi==0.63.0
+prometheus-fastapi-instrumentator==5.7.1
+http3==0.6.7
+kazoo==2.8.0
+redis==3.5.3
+uvicorn==0.14.0
