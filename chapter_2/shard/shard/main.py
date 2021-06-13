@@ -14,6 +14,7 @@ from kazoo.exceptions import NodeExistsError
 from model import Post
 from rule import RangeShardPolicy
 from utils import range_config_to_range_infos
+from post import PostService
 
 import json
 import redis
@@ -49,6 +50,7 @@ instrumentator = Instrumentator(
     inprogress_labels=True,
 )
 
+g_post_service = PostService()
 
 instrumentator.add(
     metrics.request_size(
@@ -96,29 +98,24 @@ def get_conn_from_shard(key: int):
     print(key, host)
     return conn
 
-@app.get("/api/v1/posts/{user_id}")
-async def get_test(user_id: int):
+@app.get("/api/v1/posts/{user_id}/")
+async def lists(user_id: int, last: int = -1, limit: int = 10):
     conn = get_conn_from_shard(user_id)
-    key = f"key:{user_id}"
+    values, next_id = g_post_service.list(conn, user_id, limit, last)
+    return {"code": 0, "message": "Ok", "data": values, "next": next_id}
 
-    value = conn.get(key)
-    return {"code": 0, "message": "Ok", "data": value.decode('utf-8')}
+@app.get("/api/v1/posts/{user_id}/{post_id}")
+async def get_post(user_id: int, post_id: int):
+    conn = get_conn_from_shard(user_id)
+    post = g_post_service.get(conn, user_id, post_id)
+    if not post:
+        raise UnicornException(404, -10001, "No Post: {post_id}") 
 
-@app.get("/api/v1/posts")
-async def list_posts():
-    pass
+    return {"code": 0, "message": "Ok", "post_id": post["post_id"], "contents": post["contents"]}
 
 @app.post("/api/v1/posts")
 async def write_post(post: Post):
     pass
-
-@app.get("/api/v1/test/{user_id}")
-async def write_test(user_id: int):
-    conn = get_conn_from_shard(user_id)
-    key = f"key:{user_id}"
-    value = "test"
-    conn.set(key, value)
-    return {"code":0, "message": "Ok"}
 
 
 def refresh_shard_range(data):
