@@ -2,19 +2,18 @@ from typing import Optional
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi_cprofile.profiler import CProfileMiddleware
 from pydantic import BaseModel
 
 from exceptions import UnicornException
 
-from kazoo.client import KazooClient
-from kazoo.exceptions import NoNodeError
-from kazoo.exceptions import NodeExistsError
 from settings import Settings
 
 import logging
 import json_logging
 from datetime import datetime
 import http3
+import sys
 
 from prometheus_fastapi_instrumentator import Instrumentator, metrics
 from bs4 import BeautifulSoup
@@ -31,10 +30,6 @@ json_logging.init_request_instrument(app)
 
 
 settings = Settings()
-
-ZK_SCRAP_PATH = "/the_red/services/scrap/nodes"
-ZK_HOSTS = "192.168.0.101:2181,192.168.0.102:2181,192.168.0.103:2181"
-zk = KazooClient(hosts=ZK_HOSTS)
 
 
 Instrumentator().instrument(app).expose(app)
@@ -77,8 +72,8 @@ instrumentator.add(
 )
 
 
-
 client = http3.AsyncClient()
+
 
 @app.exception_handler(UnicornException)
 async def unicorn_exception_handler(request: Request, exc: UnicornException):
@@ -123,12 +118,3 @@ async def scrap(url: str):
         return parse_opengraph(body)
     except Exception as e:
         raise UnicornException(status=400, code=-20000, message=str(e))
-
-def register_into_service_discovery(endpoint):
-    node_path = f"{ZK_SCRAP_PATH}/{endpoint}"
-    zk.create(node_path, ephemeral=True, makepath=True)
-
-@app.on_event("startup")
-def startup():
-    zk.start()
-    register_into_service_discovery(settings.APP_ENDPOINT)
