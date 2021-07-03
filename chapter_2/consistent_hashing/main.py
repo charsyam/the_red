@@ -1,0 +1,150 @@
+from typing import Optional
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from bs4 import BeautifulSoup
+from datetime import datetime
+
+import logging
+import json_logging
+import urllib.parse
+import redis
+import http3
+import sys
+import json
+
+from exceptions import UnicornException
+from settings import Settings
+
+from consistent_hash import ConsistentHash 
+from log import init_log
+from cors import init_cors
+from instrumentator import init_instrumentator
+from zoo import init_kazoo
+from config import Config
+
+
+def refresh_shard_range(nodes):
+    connections = {}
+    print(nodes)
+    if not nodes or len(nodes) == 0:
+        print("There is no redis nodes")
+        return
+
+    ch_list = [] 
+    for node in nodes:
+        parts = node.split(':')
+        addr = f"{parts[1]}:{parts[2]}"
+        nick = parts[0]
+        url = f"redis://{addr}/"
+        conn = redis.from_url(url)
+        ch_list.append((addr, nick, conn))
+        print(addr, nick)
+
+    replica = 2
+    ch = ConsistentHash(ch_list, replica)
+
+    global g_ch
+    g_ch = ch
+    print("Finished refresh_shard_range")
+
+
+app = FastAPI()
+settings = Settings()
+conf = Config(settings.CONFIG_PATH)
+ZK_DATA_PATH = "/the_red/cache/redis/consistent_hash"
+
+init_log(app, conf.section("log")["path"])
+init_cors(app)
+init_instrumentator(app)
+zk = init_kazoo(conf.section("zookeeper")["hosts"], ZK_DATA_PATH, refresh_shard_range)
+
+client = http3.AsyncClient()
+
+
+@app.exception_handler(UnicornException)
+async def unicorn_exception_handler(request: Request, exc: UnicornException):
+    return JSONResponse(
+        status_code=exc.status,
+        content={"code": exc.code, "message": exc.message},
+    )
+
+
+async def call_api(url: str):
+    r = await client.get(url)
+    return r.text
+
+
+def parse_opengraph(body: str):
+    soup = BeautifulSoup(body, 'html.parser')
+
+    title = soup.find("meta",  {"property":"og:title"})
+    url = soup.find("meta",  {"property":"og:url"})
+    og_type = soup.find("meta",  {"property":"og:type"})
+    image = soup.find("meta",  {"property":"og:image"})
+    description = soup.find("meta",  {"property":"og:description"})
+    author = soup.find("meta",  {"property":"og:article:author"})
+
+    resp = {"code": 0}
+    scrap = {}
+    scrap["title"] = title["content"] if title else None
+    scrap["url"] = url["content"] if url else None
+    scrap["type"] = og_type["content"] if og_type else None
+    scrap["image"] = image["content"] if image else None
+    scrap["description"] = description["content"] if description else None
+    scrap["author"] = author["content"] if author else None
+    resp["scrap"] = scrap
+
+    return resp
+
+
+def get_conn(ch, key):
+    if not g_ch:
+        return None
+
+    v = g_ch.get(key)
+    return g_ch.continuum[v[0]][2]
+
+
+def store_to_cache(url: str, value: str):
+    global g_ch
+
+    key = f"url:{url}"
+    conn = get_conn(g_ch, key)
+    if not conn:
+        return None
+
+    conn.set(key, json.dumps(value))
+
+
+def get_from_cache(url: str):
+    global g_ch
+
+    key = f"url:{url}"
+    conn = get_conn(g_ch, key)
+    if not conn:
+        return None
+
+    try:
+        value = conn.get(key)
+        if value:
+            return json.loads(value.decode('utf-8'))
+        else:
+            return None
+    except Exception as e:
+        raise e
+    
+
+@app.get("/api/v1/scrap/")
+async def scrap(url: str):
+    try:
+        url = urllib.parse.unquote(url)
+        value = get_from_cache(url)
+        if not value:
+            body = await call_api(url)
+            value = parse_opengraph(body)
+            store_to_cache(url, value)
+
+        return value
+    except Exception as e:
+        raise UnicornException(status=400, code=-20000, message=str(e))
