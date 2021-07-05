@@ -4,81 +4,36 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from exceptions import UnicornException
-
-from kazoo.client import KazooClient
-from kazoo.exceptions import NoNodeError
-from kazoo.exceptions import NodeExistsError
-from settings import Settings
-
-import logging
-import json_logging
 from datetime import datetime
-import http3
+import httpx
 
-from prometheus_fastapi_instrumentator import Instrumentator, metrics
 from bs4 import BeautifulSoup
 
 import urllib.parse
 
+from exceptions import UnicornException
+from settings import Settings
+from log import init_log
+from cors import init_cors
+from instrumentator import init_instrumentator
+from zoo import init_kazoo
+from config import Config
+
+
 app = FastAPI()
 
-json_logging.init_fastapi(enable_json=True)
-json_logging.init_request_instrument(app)
-logger = json_logging.get_request_logger()
-logger.addHandler(logging.handlers.TimedRotatingFileHandler("scrap.log", when='h'))
-json_logging.init_request_instrument(app)
-
-
-settings = Settings()
 
 ZK_SCRAP_PATH = "/the_red/services/scrap/nodes"
-ZK_HOSTS = "192.168.0.101:2181,192.168.0.102:2181,192.168.0.103:2181"
-zk = KazooClient(hosts=ZK_HOSTS)
+
+my_settings = Settings()
+conf = Config(my_settings.CONFIG_PATH)
+init_log(app, conf.section("log")["path"])
+init_cors(app)
+init_instrumentator(app)
+zk = init_kazoo(conf.section("zookeeper")["hosts"], None, None)
 
 
-Instrumentator().instrument(app).expose(app)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-instrumentator = Instrumentator(
-    should_group_status_codes=False,
-    should_ignore_untemplated=True,
-    should_respect_env_var=True,
-    should_instrument_requests_inprogress=True,
-    excluded_handlers=[".*admin.*", "/metrics"],
-    env_var_name="ENABLE_METRICS",
-    inprogress_name="inprogress",
-    inprogress_labels=True,
-)
-
-instrumentator.add(
-    metrics.request_size(
-        should_include_handler=True,
-        should_include_method=False,
-        should_include_status=True,
-        metric_namespace="a",
-        metric_subsystem="b",
-    )
-).add(
-    metrics.response_size(
-        should_include_handler=True,
-        should_include_method=False,
-        should_include_status=True,
-        metric_namespace="namespace",
-        metric_subsystem="subsystem",
-    )
-)
-
-
-
-client = http3.AsyncClient()
+client = httpx.AsyncClient()
 
 @app.exception_handler(UnicornException)
 async def unicorn_exception_handler(request: Request, exc: UnicornException):
@@ -114,8 +69,8 @@ def parse_opengraph(body: str):
 
     return resp
 
+
 @app.get("/api/v1/scrap/")
-#@cache()
 async def scrap(url: str):
     try:
         url = urllib.parse.unquote(url)
@@ -130,5 +85,4 @@ def register_into_service_discovery(endpoint):
 
 @app.on_event("startup")
 def startup():
-    zk.start()
-    register_into_service_discovery(settings.APP_ENDPOINT)
+    register_into_service_discovery(my_settings.APP_ENDPOINT)

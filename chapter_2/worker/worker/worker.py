@@ -2,6 +2,7 @@ import redis
 from simplekiq import KiqQueue
 from simplekiq import EventBuilder
 from simplekiq import Worker
+from config import Config
 
 
 class MyEventWorker(Worker):
@@ -12,7 +13,8 @@ class MyEventWorker(Worker):
         print(event_type, value)
 
 
-conn = redis.StrictRedis("192.168.0.102", 6379)
+conf = Config("worker.ini").section("sidekiq")
+conn = redis.StrictRedis(conf["host"], conf["port"])
 queue = KiqQueue(conn, "api_worker", True)
 failed_queue = KiqQueue(conn, "api_failed", True)
 

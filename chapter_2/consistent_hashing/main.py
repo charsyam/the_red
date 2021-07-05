@@ -9,7 +9,7 @@ import logging
 import json_logging
 import urllib.parse
 import redis
-import http3
+import httpx
 import sys
 import json
 
@@ -50,8 +50,8 @@ def refresh_shard_range(nodes):
 
 
 app = FastAPI()
-settings = Settings()
-conf = Config(settings.CONFIG_PATH)
+my_settings = Settings()
+conf = Config(my_settings.CONFIG_PATH)
 ZK_DATA_PATH = "/the_red/cache/redis/consistent_hash"
 
 init_log(app, conf.section("log")["path"])
@@ -59,7 +59,7 @@ init_cors(app)
 init_instrumentator(app)
 zk = init_kazoo(conf.section("zookeeper")["hosts"], ZK_DATA_PATH, refresh_shard_range)
 
-client = http3.AsyncClient()
+client = httpx.AsyncClient()
 
 
 @app.exception_handler(UnicornException)
