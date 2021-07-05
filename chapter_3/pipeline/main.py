@@ -27,7 +27,7 @@ def no_pipeline(conn,n):
     print("No-Pipeline Elapsed time:", t1_stop - t1_start, t1_stop, t1_start) 
 
 
-rconn = redis.StrictRedis(host='192.168.0.102', port=6379, db=0)
+rconn = redis.StrictRedis(host='127.0.0.1', port=6379, db=0)
 
 pipeline(rconn, int(sys.argv[1]))
 no_pipeline(rconn, int(sys.argv[1]))

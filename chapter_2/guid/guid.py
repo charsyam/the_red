@@ -19,7 +19,6 @@ class GUID_BITS:
 
 class Snowflake(object):
     def __init__(self, datacenter_id, worker_id, epoch = EPOCH):
-        print(datacenter_id, worker_id)
         if datacenter_id >= get_bitsize(GUID_BITS.DATACENTER_ID_BITS) or \
            worker_id >= get_bitsize(GUID_BITS.WORKER_ID_BITS):
             raise Exception("Invalid datacenter_id or worker_id")

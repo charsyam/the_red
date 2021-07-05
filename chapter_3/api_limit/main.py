@@ -11,7 +11,7 @@ import logging
 import json_logging
 import urllib.parse
 import redis
-import http3
+import httpx
 import sys
 import json
 import random
@@ -31,7 +31,7 @@ settings = Settings()
 init_cors(app)
 init_instrumentator(app)
 
-client = http3.AsyncClient()
+client = httpx.AsyncClient()
 
 API_MAXIMUM_NUMBER = 10
 N_MINUTES = 5

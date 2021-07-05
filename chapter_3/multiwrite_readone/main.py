@@ -11,7 +11,7 @@ import logging
 import json_logging
 import urllib.parse
 import redis
-import http3
+import httpx
 import sys
 import json
 import random
@@ -80,7 +80,7 @@ init_instrumentator(app)
 g_ch = None
 zk = init_kazoo(conf.section("zookeeper")["hosts"], ZK_DATA_PATH, refresh_cache_hosts)
 
-client = http3.AsyncClient()
+client = httpx.AsyncClient()
 
 
 @app.exception_handler(UnicornException)
