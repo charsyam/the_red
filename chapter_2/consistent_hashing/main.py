@@ -4,6 +4,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from bs4 import BeautifulSoup
 from datetime import datetime
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 
 import logging
 import json_logging
@@ -12,6 +14,7 @@ import redis
 import httpx
 import sys
 import json
+import traceback
 
 from exceptions import UnicornException
 from settings import Settings
@@ -26,7 +29,6 @@ from config import Config
 
 def refresh_shard_range(nodes):
     connections = {}
-    print(nodes)
     if not nodes or len(nodes) == 0:
         print("There is no redis nodes")
         return
@@ -39,9 +41,8 @@ def refresh_shard_range(nodes):
         url = f"redis://{addr}/"
         conn = redis.from_url(url)
         ch_list.append((addr, nick, conn))
-        print(addr, nick)
 
-    replica = 2
+    replica = 1
     ch = ConsistentHash(ch_list, replica)
 
     global g_ch
@@ -60,6 +61,7 @@ init_instrumentator(app)
 zk = init_kazoo(conf.section("zookeeper")["hosts"], ZK_DATA_PATH, refresh_shard_range)
 
 client = httpx.AsyncClient()
+templates = Jinja2Templates(directory="templates/")
 
 
 @app.exception_handler(UnicornException)
@@ -147,4 +149,25 @@ async def scrap(url: str):
 
         return value
     except Exception as e:
+        traceback.print_exc(file=sys.stderr)
         raise UnicornException(status=400, code=-20000, message=str(e))
+
+
+def all_keys(conn):
+    results = []
+    for key in conn.scan_iter("*"):
+        k = key.decode('utf-8')
+        results.append((g_ch.hash_func(k), k))
+
+    return sorted(results, key=lambda x: x[0])
+
+
+@app.get("/demo")
+async def demo(request: Request):
+    global g_ch
+    results = []
+    for k,i,v,h,nick in g_ch.continuum:
+        keys = all_keys(v)
+        results.append((nick, h, keys))
+
+    return templates.TemplateResponse('demo.html', context={'request': request, 'results': results})

@@ -24,7 +24,7 @@ class ConsistentHash:
 
       
     def rebuild(self, kvlist):
-        continuum = [(k, i, v, self._hash("%s:%s"%(nick,i))) \
+        continuum = [(k, i, v, self._hash("%s:%s"%(nick,i)), "%s:%s"%(nick, i)) \
                      for k, nick, v in kvlist \
                      for i in range(self.replica)]
 
@@ -55,7 +55,7 @@ class ConsistentHash:
     def get(self, key):
         h = self._hash(key)
         if h < self.continuum[FIRST][HASH_IDX] or h > self.continuum[LAST][HASH_IDX]:
-            return self.continuum[FIRST][VALUE_IDX]
+            return 0, self.continuum[FIRST][VALUE_IDX]
 
         return self.find_near_value(self.continuum, h)
       
