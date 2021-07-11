@@ -25,7 +25,9 @@ if [ ! -d "zookeeper" ]; then
     tar zxvf $ZOO_FILENAME
     ln -sf $REPO_ROOT_PATH/$ZOO_FOLDER $REPO_ROOT_PATH/zookeeper
     cp $REPO_ROOT_PATH/conf/zoo.cfg $REPO_ROOT_PATH/zookeeper/conf/zoo.cfg
+    mkdir -p $REPO_ROOT_PATH/zookeeper/data
     echo "dataDir=$REPO_ROOT_PATH/zookeeper/data" >>  $REPO_ROOT_PATH/zookeeper/conf/zoo.cfg
+    echo "1" >> $REPO_ROOT_PATH/zookeeper/data/myid
 else
     echo "   4) INSTALLING ZOOKEEPER-$ZOOKEEPER_VERSION (DONE)"
 fi
