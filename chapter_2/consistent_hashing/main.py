@@ -35,6 +35,7 @@ def refresh_shard_range(nodes):
 
     ch_list = [] 
     for node in nodes:
+        print("Node: ", node)
         parts = node.split(':')
         addr = f"{parts[1]}:{parts[2]}"
         nick = parts[0]
@@ -143,9 +144,12 @@ async def scrap(url: str):
         url = urllib.parse.unquote(url)
         value = get_from_cache(url)
         if not value:
+            print("Not Exist in Cache: ", url)
             body = await call_api(url)
             value = parse_opengraph(body)
             store_to_cache(url, value)
+        else:
+            print("Exist in Cache: ", url)
 
         return value
     except Exception as e:
