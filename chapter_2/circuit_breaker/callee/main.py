@@ -16,21 +16,17 @@ from settings import Settings
 from log import init_log
 from cors import init_cors
 from instrumentator import init_instrumentator
-from zoo import init_kazoo
 from config import Config
 
 
 app = FastAPI()
 
 
-ZK_SCRAP_PATH = "/the_red/services/scrap/nodes"
-
 my_settings = Settings()
 conf = Config(my_settings.CONFIG_PATH)
 init_log(app, conf.section("log")["path"])
 init_cors(app)
 init_instrumentator(app)
-zk = init_kazoo(conf.section("zookeeper")["hosts"], None, None)
 
 
 client = httpx.AsyncClient()
@@ -78,13 +74,3 @@ async def scrap(url: str):
         return parse_opengraph(body)
     except Exception as e:
         raise UnicornException(status=400, code=-20000, message=str(e))
-
-def register_into_service_discovery(endpoint):
-    node_path = f"{ZK_SCRAP_PATH}/{endpoint}"
-    if zk.exists(node_path):
-        zk.delete(node_path)
-    zk.create(node_path, ephemeral=True, makepath=True)
-
-@app.on_event("startup")
-def startup():
-    register_into_service_discovery(my_settings.APP_ENDPOINT)

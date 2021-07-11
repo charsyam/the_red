@@ -13,3 +13,4 @@ geoip2==4.2.0
 aredis[hiredis]==1.1.8
 jinja2==3.0.1
 aiofiles==0.7.0
+aiobreaker==1.2.0
