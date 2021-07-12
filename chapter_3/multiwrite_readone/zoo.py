@@ -14,6 +14,7 @@ def init_kazoo(hosts, data_path, callback):
     _zk.start()
 
     _callback = callback
+    _zk.ensure_path(data_path)
 
     print(data_path)
     @_zk.ChildrenWatch(data_path)
