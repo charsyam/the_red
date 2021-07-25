@@ -6,7 +6,7 @@ from kazoo.exceptions import NodeExistsError
 _callback = None
 _zk = None
 
-def init_kazoo(hosts, data_path, callback):
+def init_kazoo(hosts, data_path, callback, children=True):
     global _zk
     global _callback
 
@@ -15,12 +15,18 @@ def init_kazoo(hosts, data_path, callback):
 
     _callback = callback
 
-    print(data_path)
-    @_zk.ChildrenWatch(data_path)
-    def watch_refresh_shardrange(children):
-        if _callback:
-            _callback(children)
+    if data_path:
+        if children:
+            @_zk.ChildrenWatch(data_path)
+            def watch_children(children):
+                print("Watch Children")
+                if _callback:
+                    _callback(children)
+        else:
+            @_zk.DataWatch(data_path)
+            def watch_node(data, stat):
+                print("Watch Node")
+                if _callback:
+                    _callback(data, stat)
 
     return _zk
-
-

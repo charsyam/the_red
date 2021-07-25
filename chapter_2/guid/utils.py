@@ -11,6 +11,7 @@ def get_timestamp():
 def til_next_millis(last):
     timestamp = get_timestamp()
     while (timestamp <= last):
+        time.sleep(0.001)
         timestamp = get_timestamp()
 
     return timestamp
