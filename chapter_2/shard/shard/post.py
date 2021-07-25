@@ -1,4 +1,11 @@
 class PostService:
+    def write(self, conn, user_id, post_id, value):
+        user_key = f"key:{user_id}"
+        post_key = f"p:{user_id}"
+        conn.zadd(user_key, {post_id: post_id})
+        conn.hset(post_key, post_id, value)
+        return {"post_id": post_id, "contents": value}
+
     def get(self, conn, user_id, post_id):
         post_key = f"p:{user_id}"
         post_raw = conn.hget(post_key, post_id)
@@ -22,6 +29,7 @@ class PostService:
 
         results = [v.decode('utf-8') for v in values[:limit]]
         post_key = f"p:{user_id}"
+        print(results)
         posts_raw = conn.hmget(post_key, results)
 
         datas = zip(results, posts_raw)

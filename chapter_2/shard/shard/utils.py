@@ -3,6 +3,7 @@ from rule import RangeInfo
 
 def range_config_to_range_infos(data):
     config = json.loads(data)
+    print(config)
     length = len(config)
 
     infos = []

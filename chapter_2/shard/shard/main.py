@@ -16,17 +16,20 @@ from zoo import init_kazoo
 from config import Config
 from settings import Settings
 
+import traceback
 import json
 import redis
+import sys
 
 
-def refresh_shard_range(data):
-    if not data or len(data) == 0:
-        print("There is data")
+def refresh_shard_range(data, stat):
+    if not data:
+        print("There is no data")
         return
 
     try:
         infos = range_config_to_range_infos(data)
+        print(infos)
         policy = RangeShardPolicy(infos)
     except Exception as e:
         print(str(e))
@@ -34,7 +37,8 @@ def refresh_shard_range(data):
 
     connections = {}
     for info in policy.infos:
-        url = f"redis://{info.host}/"
+        parts = info.host.split(':')
+        url = f"redis://{parts[1]}:{parts[2]}/"
         conn = redis.from_url(url)
         connections[info.host] = conn
 
@@ -58,7 +62,7 @@ conf = Config(my_settings.CONFIG_PATH)
 init_log(app, conf.section("log")["path"])
 init_cors(app)
 init_instrumentator(app)
-zk = init_kazoo(conf.section("zookeeper")["hosts"], ZK_DATA_PATH, refresh_shard_range)
+zk = init_kazoo(conf.section("zookeeper")["hosts"], ZK_DATA_PATH, refresh_shard_range, False)
 
 
 @app.exception_handler(UnicornException)
@@ -108,6 +112,12 @@ async def get_post(user_id: int, post_id: int):
     return {"code": 0, "message": "Ok", "post_id": post["post_id"], "contents": post["contents"]}
 
 
-@app.post("/api/v1/posts")
-async def write_post(post: Post):
-    pass
+@app.get("/api/v1/write_post/{user_id}")
+async def write_post(user_id: int, post_id: int, text: str):
+    try:
+        conn = get_conn_from_shard(user_id)
+        post = g_post_service.write(conn, user_id, post_id, text)
+        return {"code": 0, "message": "Ok", "post_id": post["post_id"], "contents": post["contents"]}
+    except Exception as e:
+        traceback.print_exc(file=sys.stderr)
+        raise UnicornException(404, -10002, str(e)) 
