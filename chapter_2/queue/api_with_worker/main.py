@@ -1,18 +1,12 @@
 from typing import Optional
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from datetime import datetime
-import httpx
 import sys
-
-from bs4 import BeautifulSoup
-from sqlalchemy.orm import Session, sessionmaker
-
-import urllib.parse
-import redis
-import sqlalchemy.orm.session
 
 from simplekiq import KiqQueue
 from simplekiq import EventBuilder
@@ -23,8 +17,8 @@ from log import init_log
 from cors import init_cors
 from instrumentator import init_instrumentator
 
+import redis
 import crud
-import models
 import database
 
 
@@ -35,13 +29,19 @@ init_log(app, conf.section("log")["path"])
 init_cors(app)
 init_instrumentator(app)
 
+templates = Jinja2Templates(directory="templates/")
 
 rconn = redis.StrictRedis(conf.section('sidekiq')['host'], int(conf.section('sidekiq')['port']))
-queue = KiqQueue(rconn, "api_worker", True)
+queue = KiqQueue(rconn, conf.section('sidekiq')['queue'], True)
 failed_queue = KiqQueue(rconn, "api_failed", True)
 event_builder = EventBuilder(queue)
 
-models.Base.metadata.create_all(bind=database.engine)
+
+database.init_database(conf.section('database')['url'])
+
+
+def get_db():
+    return database.Session()
 
 
 @app.exception_handler(UnicornException)
@@ -58,5 +58,14 @@ async def scrap(url: str):
         value = event_builder.emit("scrap", {"url": url})
         queue.enqueue(value)
         return True
+    except Exception as e:
+        raise UnicornException(status=400, code=-20000, message=str(e))
+
+
+@app.get("/api/v1/list")
+async def list(request: Request):
+    try:
+        results = crud.list(get_db())
+        return templates.TemplateResponse('demo.html', context={'request': request, 'results': results})
     except Exception as e:
         raise UnicornException(status=400, code=-20000, message=str(e))

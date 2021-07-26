@@ -1,25 +1,17 @@
 from typing import Optional
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from datetime import datetime
-import httpx
 import sys
-
-from bs4 import BeautifulSoup
-
-import urllib.parse
-import redis
-
-from sqlalchemy.orm import Session, sessionmaker
-import sqlalchemy.orm.session
 
 from exceptions import UnicornException
 from settings import Settings
 
 import crud
-import models
 import database
 
 from log import init_log
@@ -38,12 +30,13 @@ init_log(app, conf.section("log")["path"])
 init_cors(app)
 init_instrumentator(app)
 
-client = httpx.AsyncClient()
-models.Base.metadata.create_all(bind=database.engine)
+templates = Jinja2Templates(directory="templates/")
+
+database.init_database(conf.section("database")["url"])
 
 
 def get_db():
-    db = database.SessionLocal()
+    db = database.Session()
     return db
 
 
@@ -60,5 +53,14 @@ async def scrap(url: str):
     try:
         ret = crud.create_url(get_db(), url)
         return ret
+    except Exception as e:
+        raise UnicornException(status=400, code=-20000, message=str(e))
+
+
+@app.get("/api/v1/list")
+async def list(request: Request):
+    try:
+        results = crud.list(get_db())
+        return templates.TemplateResponse('demo.html', context={'request': request, 'results': results})
     except Exception as e:
         raise UnicornException(status=400, code=-20000, message=str(e))
