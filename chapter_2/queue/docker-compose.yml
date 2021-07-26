@@ -1,0 +1,44 @@
+version: '2'
+services:
+  the_red_redis:
+    image: redis:6.0.6
+    hostname: localhost
+    ports:
+    - 16379:6379
+    container_name: the_red_redis
+    networks:
+      - the_red_net
+
+  the_red_sidekiq:
+    depends_on:
+      - "the_red_redis"
+    image: ascensionit/sidekiq-web
+    hostname: localhost
+    container_name: the_red_sidekiq
+    ports:
+    - 18080:8080
+    environment:
+      REDIS_HOST: the_red_redis
+      REDIS_PORT: 6379
+    networks:
+      - the_red_net
+
+  the_red_mysql:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    hostname: localhost
+    environment:
+      MYSQL_ROOT_PASSWORD: the_red#
+      MYSQL_USER: the_red
+      MYSQL_PASSWORD: the_red#
+      MYSQL_DATABASE: the_red
+    ports:
+    - 13306:3306
+    container_name: the_red_mysql
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+
+networks:
+    the_red_net:
+        driver: bridge
