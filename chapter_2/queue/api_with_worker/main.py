@@ -31,9 +31,8 @@ init_instrumentator(app)
 
 templates = Jinja2Templates(directory="templates/")
 
-rconn = redis.StrictRedis(conf.section('sidekiq')['host'], int(conf.section('sidekiq')['port']))
-queue = KiqQueue(rconn, conf.section('sidekiq')['queue'], True)
-failed_queue = KiqQueue(rconn, "api_failed", True)
+queue = KiqQueue(conf.section('sidekiq')['host'], conf.section('sidekiq')['queue'], True)
+failed_queue = KiqQueue(conf.section('sidekiq')['host'], conf.section('sidekiq')['failed_queue'], True)
 event_builder = EventBuilder(queue)
 
 

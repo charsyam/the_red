@@ -19,7 +19,14 @@ class MyEventWorker(Worker):
         super().__init__(queue, failed_queue)
 
     def _process(self, event_type, value):
-        crud.create_url(get_db(), value["url"])
+        url = value["url"]
+        scrap = json.dumps(value["scrap"])
+        contents = value["contents"]
+        post_id = value["post_id"]
+
+        print("scrap :", scrap)
+        post = crud.create_post(post_id, contents, url, scrap)
+        crud.insert(get_db(), post)
         print(event_type, value)
 
 
