@@ -2,7 +2,6 @@ from typing import Optional
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi_cprofile.profiler import CProfileMiddleware
 from pydantic import BaseModel
 from bs4 import BeautifulSoup
 
