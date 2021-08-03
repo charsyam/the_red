@@ -49,6 +49,7 @@ async def unicorn_exception_handler(request: Request, exc: UnicornException):
 @app.get("/api/v1/guid/")
 async def guid():
     try:
-        return {"guid": snowflake.next()}
+        n = snowflake.next()
+        return {"guid": n, "guid_str": str(n)}
     except Exception as e:
         raise UnicornException(status=400, code=-20000, message=str(e))
