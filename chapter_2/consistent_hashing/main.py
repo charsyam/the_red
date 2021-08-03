@@ -10,7 +10,6 @@ from fastapi.templating import Jinja2Templates
 import logging
 import json_logging
 import urllib.parse
-import redis
 import httpx
 import sys
 import json
@@ -26,6 +25,8 @@ from instrumentator import init_instrumentator
 from zoo import init_kazoo
 from config import Config
 
+from redis_conn import RedisConnection
+
 
 def refresh_shard_range(nodes):
     connections = {}
@@ -39,8 +40,7 @@ def refresh_shard_range(nodes):
         parts = node.split(':')
         addr = f"{parts[1]}:{parts[2]}"
         nick = parts[0]
-        url = f"redis://{addr}/"
-        conn = redis.from_url(url)
+        conn = RedisConnection(addr)
         ch_list.append((addr, nick, conn))
 
     replica = 1
@@ -54,12 +54,12 @@ def refresh_shard_range(nodes):
 app = FastAPI()
 my_settings = Settings()
 conf = Config(my_settings.CONFIG_PATH)
-ZK_DATA_PATH = "/the_red/cache/redis/consistent_hash"
+ZK_PATH = "/the_red/cache/redis/scrap"
 
 init_log(app, conf.section("log")["path"])
 init_cors(app)
 init_instrumentator(app)
-zk = init_kazoo(conf.section("zookeeper")["hosts"], ZK_DATA_PATH, refresh_shard_range)
+zk = init_kazoo(conf.section("zookeeper")["hosts"], ZK_PATH, refresh_shard_range)
 
 client = httpx.AsyncClient()
 templates = Jinja2Templates(directory="templates/")
@@ -106,7 +106,7 @@ def get_conn(ch, key):
         return None
 
     v = g_ch.get(key)
-    return g_ch.continuum[v[0]][2]
+    return g_ch.continuum[v[0]][2].get_conn()
 
 
 def store_to_cache(url: str, value: str):
@@ -171,7 +171,7 @@ async def demo(request: Request):
     global g_ch
     results = []
     for k,i,v,h,nick in g_ch.continuum:
-        keys = all_keys(v)
+        keys = all_keys(v.get_conn())
         results.append((nick, h, keys))
 
     return templates.TemplateResponse('demo.html', context={'request': request, 'results': results})
