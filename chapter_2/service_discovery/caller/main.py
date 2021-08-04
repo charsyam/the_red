@@ -73,7 +73,7 @@ async def get_post(url: str):
     decoded_url = urllib.parse.unquote(url)
     endpoint, scrap_raw = await call_api(decoded_url)
     scrap = json.loads(scrap_raw)
-    return {"code": 0, "message": "Ok", "endpoint": endpoint, "scarp": scrap}
+    return {"endpoint": endpoint, "scarp": scrap}
 
 
 @app.get("/list")

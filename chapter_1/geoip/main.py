@@ -49,11 +49,9 @@ async def unicorn_exception_handler(request: Request, exc: UnicornException):
 async def read_item(ip: str):
     try:
         resp = reader.country(ip)
-        return {"code": 0,  "ip": ip,
-                "country": resp.country.iso_code}
+        return {"ip": ip, "country": resp.country.iso_code}
     except geoip2.errors.AddressNotFoundError as e:
-        return {"code": 0,  "ip": ip,
-                "country": ""}
+        return {"ip": ip, "country": ""}
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
         raise UnicornException(status=400, code=-20000, message=str(e))

@@ -12,7 +12,6 @@ import sys
 from random import random
 from math import log
 
-import redis
 import simplejson as json
 import urllib.parse
 import time
@@ -23,6 +22,7 @@ from config import Config
 from log import init_log
 from cors import init_cors
 from instrumentator import init_instrumentator
+from redis_conn import RedisConnection
 
 
 app = FastAPI()
@@ -43,8 +43,8 @@ def conn_to_redis(conf):
     addr = conf.section("redis")
     host = addr['host']
     port = addr['port']
-    url = f"redis://{host}:{port}/"
-    return redis.from_url(url)
+    addr = f"{host}:{port}"
+    return RedisConnection(addr)
 
 
 rconn = conn_to_redis(conf)
@@ -73,7 +73,7 @@ def parse_opengraph(body: str):
     description = soup.find("meta",  {"property":"og:description"})
     author = soup.find("meta",  {"property":"og:article:author"})
 
-    resp = {"code": 0}
+    resp = {}
     scrap = {}
     scrap["title"] = title["content"] if title else None
     scrap["url"] = url["content"] if url else None
@@ -88,25 +88,26 @@ def parse_opengraph(body: str):
 
 def set_cache(url, value, ttl=10):
     key = f"url:{url}"
-    rconn.setex(key, ttl, json.dumps(value))
+    rconn.get_conn().setex(key, ttl, json.dumps(value))
 
 
 def xfetch(url):
+    conn = rconn.get_conn()
     key = f"url:{url}"
-    ttl_ms = rconn.pttl(key)
+    ttl_ms = conn.pttl(key)
     if (ttl_ms == -2):
         return None
 
     v = None
     if (ttl_ms == -1):
-        v = rconn.get(key)
+        v = conn.get(key)
     else:
         r1 = random()
         l1 = log(r1)
         c1 = abs(int(DELTA * BETA * l1))
         print(c1 > ttl_ms, ttl_ms, c1, r1, l1)
         if c1 < ttl_ms:
-            v = rconn.get(key)
+            v = conn.get(key)
 
     if v:
         return json.loads(v.decode('utf-8'))

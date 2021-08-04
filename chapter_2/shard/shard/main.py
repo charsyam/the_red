@@ -15,10 +15,10 @@ from instrumentator import init_instrumentator
 from zoo import init_kazoo
 from config import Config
 from settings import Settings
+from redis_conn import redis
 
 import traceback
 import json
-import redis
 import sys
 
 
@@ -38,8 +38,7 @@ def refresh_shard_range(data, stat):
     connections = {}
     for info in policy.infos:
         parts = info.host.split(':')
-        url = f"redis://{parts[1]}:{parts[2]}/"
-        conn = redis.from_url(url)
+        conn = RedisConnection(f"{parts[1]}:{parts[2]}")
         connections[info.host] = conn
 
     global g_shardpolicy
@@ -89,7 +88,7 @@ async def list_shards():
 def get_conn_from_shard(key: int):
     global g_shardpolicy
     host = g_shardpolicy.getShardInfo(key)
-    conn = g_connections[host]
+    conn = g_connections[host].get_conn()
 
     print(key, host)
     return conn
@@ -99,7 +98,7 @@ def get_conn_from_shard(key: int):
 async def lists(user_id: int, last: int = -1, limit: int = 10):
     conn = get_conn_from_shard(user_id)
     values, next_id = g_post_service.list(conn, user_id, limit, last)
-    return {"code": 0, "message": "Ok", "data": values, "next": next_id}
+    return {"data": values, "next": next_id}
 
 
 @app.get("/api/v1/posts/{user_id}/{post_id}")
@@ -109,7 +108,7 @@ async def get_post(user_id: int, post_id: int):
     if not post:
         raise UnicornException(404, -10001, "No Post: {post_id}") 
 
-    return {"code": 0, "message": "Ok", "post_id": post["post_id"], "contents": post["contents"]}
+    return {"post_id": post["post_id"], "contents": post["contents"]}
 
 
 @app.get("/api/v1/write_post/{user_id}")
@@ -117,7 +116,7 @@ async def write_post(user_id: int, post_id: int, text: str):
     try:
         conn = get_conn_from_shard(user_id)
         post = g_post_service.write(conn, user_id, post_id, text)
-        return {"code": 0, "message": "Ok", "post_id": post["post_id"], "contents": post["contents"]}
+        return {"post_id": post["post_id"], "contents": post["contents"]}
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
         raise UnicornException(404, -10002, str(e)) 

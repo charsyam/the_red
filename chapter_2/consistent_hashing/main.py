@@ -88,7 +88,7 @@ def parse_opengraph(body: str):
     description = soup.find("meta",  {"property":"og:description"})
     author = soup.find("meta",  {"property":"og:article:author"})
 
-    resp = {"code": 0}
+    resp = {}
     scrap = {}
     scrap["title"] = title["content"] if title else None
     scrap["url"] = url["content"] if url else None
@@ -171,7 +171,10 @@ async def demo(request: Request):
     global g_ch
     results = []
     for k,i,v,h,nick in g_ch.continuum:
-        keys = all_keys(v.get_conn())
-        results.append((nick, h, keys))
+        try:
+            keys = all_keys(v.get_conn())
+            results.append((nick, h, keys))
+        except Exception as e:
+            results.append((nick, h, []))
 
     return templates.TemplateResponse('demo.html', context={'request': request, 'results': results})

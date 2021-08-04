@@ -12,7 +12,6 @@ import struct
 import logging
 import json_logging
 import urllib.parse
-import redis
 import httpx
 import sys
 import json
@@ -27,6 +26,7 @@ from cors import init_cors
 from instrumentator import init_instrumentator
 from zoo import init_kazoo
 from config import Config
+from redis_conn import RedisConnection
 
 
 class MultiCache:
@@ -37,8 +37,7 @@ class MultiCache:
             parts = host.split(':')
             addr = f"{parts[1]}:{parts[2]}"
             nick = parts[0]
-            url = f"redis://{addr}/"
-            conn = redis.from_url(url)
+            conn = RedisConnection(addr)
             self.conns.append((host, conn))
 
         self.replica = replica
@@ -51,7 +50,7 @@ class MultiCache:
     def set(self, key, value):
         idx =self.hash(key) % self.count
         for i in range(self.replica):
-            conn = self.conns[(idx+i) % self.count][1]
+            conn = self.conns[(idx+i) % self.count][1].get_conn()
             conn.set(key, value)
 
     def get_read_idx(self, h):
@@ -61,7 +60,7 @@ class MultiCache:
 
     def get(self, key): 
         idx = self.get_read_idx(self.hash(key))
-        conn = self.conns[idx][1]
+        conn = self.conns[idx][1].get_conn()
         return idx, conn.get(key)
 
 
@@ -118,7 +117,7 @@ def parse_opengraph(body: str):
     description = soup.find("meta",  {"property":"og:description"})
     author = soup.find("meta",  {"property":"og:article:author"})
 
-    resp = {"code": 0}
+    resp = {}
     scrap = {}
     scrap["title"] = title["content"] if title else None
     scrap["url"] = url["content"] if url else None
@@ -179,7 +178,10 @@ async def demo(request: Request):
     global g_ch
     results = []
     for host, conn in g_ch.conns:
-        keys = all_keys(conn)
-        results.append((host, keys))
+        try:
+            keys = all_keys(conn.get_conn())
+            results.append((host, keys))
+        except Exception as e:
+            results.append((host, []))
 
     return templates.TemplateResponse('demo.html', context={'request': request, 'results': results})
