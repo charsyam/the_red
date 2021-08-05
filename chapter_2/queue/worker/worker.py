@@ -18,7 +18,7 @@ class MyEventWorker(Worker):
     def __init__(self, queue, failed_queue):
         super().__init__(queue, failed_queue)
 
-    def _process(self, event_type, value):
+    def on_event(self, event_type, value):
         crud.create_url(get_db(), value["url"])
         print(event_type, value)
 
