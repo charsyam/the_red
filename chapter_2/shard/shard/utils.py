@@ -1,5 +1,5 @@
 import json
-from rule import RangeInfo
+from shard import RangeInfo
 
 def range_config_to_range_infos(data):
     config = json.loads(data)

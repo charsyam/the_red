@@ -1,11 +1,13 @@
 from typing import Optional
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from exceptions import UnicornException
 
 from model import Post
-from rule import RangeShardPolicy
+from shard import RangeShardPolicy, RangeShardManager
 from utils import range_config_to_range_infos
 from post import PostService
 
@@ -15,12 +17,14 @@ from instrumentator import init_instrumentator
 from zoo import init_kazoo
 from config import Config
 from settings import Settings
-from redis_conn import redis
+from redis_conn import RedisConnection
 
 import traceback
 import json
 import sys
 
+
+g_shardmanager = None
 
 def refresh_shard_range(data, stat):
     if not data:
@@ -29,30 +33,20 @@ def refresh_shard_range(data, stat):
 
     try:
         infos = range_config_to_range_infos(data)
-        print(infos)
         policy = RangeShardPolicy(infos)
     except Exception as e:
         print(str(e))
         return None
 
-    connections = {}
-    for info in policy.infos:
-        parts = info.host.split(':')
-        conn = RedisConnection(f"{parts[1]}:{parts[2]}")
-        connections[info.host] = conn
-
-    global g_shardpolicy
-    global g_connections
-    g_shardpolicy = policy
-    g_connections = connections
+    global g_shardmanager
+    shardmanager = RangeShardManager(policy)
+    g_shardmanager = shardmanager
     print("Finished refresh_shard_range")
 
 
 app = FastAPI()
 
-ZK_DATA_PATH = "/the_red/storages/redis/shards/ranges"
 
-g_shardpolicy = None
 g_post_service = PostService()
 
 my_settings = Settings()
@@ -61,7 +55,9 @@ conf = Config(my_settings.CONFIG_PATH)
 init_log(app, conf.section("log")["path"])
 init_cors(app)
 init_instrumentator(app)
-zk = init_kazoo(conf.section("zookeeper")["hosts"], ZK_DATA_PATH, refresh_shard_range, False)
+zk = init_kazoo(conf.section("zookeeper")["hosts"], conf.section("zookeeper")["path"], refresh_shard_range, False)
+
+templates = Jinja2Templates(directory="templates/")
 
 
 @app.exception_handler(UnicornException)
@@ -72,26 +68,8 @@ async def unicorn_exception_handler(request: Request, exc: UnicornException):
     )
 
 
-@app.get("/api/v1/shards")
-async def list_shards():
-    global g_shardpolicy
-    results = {} 
-    i = 0
-    for info in g_shardpolicy.infos:
-        idx = str(i)
-        results[idx] = {"start": info.start, "end": info.end, "host": info.host}
-        i += 1
-
-    return results
-
-
 def get_conn_from_shard(key: int):
-    global g_shardpolicy
-    host = g_shardpolicy.getShardInfo(key)
-    conn = g_connections[host].get_conn()
-
-    print(key, host)
-    return conn
+    return g_shardmanager.get_conn(key)
 
 
 @app.get("/api/v1/posts/{user_id}/")
@@ -120,3 +98,32 @@ async def write_post(user_id: int, post_id: int, text: str):
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
         raise UnicornException(404, -10002, str(e)) 
+
+
+def all_keys(conn):
+    results = []
+    for key in conn.scan_iter("*"):
+        k = key.decode('utf-8')
+        results.append(k)
+
+    return sorted(results, key=lambda x: x[0])
+
+
+@app.get("/demo")
+async def demo(request: Request):
+    policy = g_shardmanager.get_policy()
+    results = []
+
+    for info in policy.infos:
+        r = f"{info.start} - {info.end}"
+        try:
+            conn = g_shardmanager.get_conn_by_host(info.host)
+            print(conn)
+            keys = all_keys(conn)
+            results.append((info.host, r, keys))
+            print(keys)
+        except Exception as e:
+            print(str(e))
+            results.append((info.host, r, []))
+
+    return templates.TemplateResponse('demo.html', context={'request': request, 'results': results})

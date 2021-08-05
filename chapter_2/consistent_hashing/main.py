@@ -61,7 +61,6 @@ init_cors(app)
 init_instrumentator(app)
 zk = init_kazoo(conf.section("zookeeper")["hosts"], ZK_PATH, refresh_shard_range)
 
-client = httpx.AsyncClient()
 templates = Jinja2Templates(directory="templates/")
 
 
@@ -74,8 +73,9 @@ async def unicorn_exception_handler(request: Request, exc: UnicornException):
 
 
 async def call_api(url: str):
-    r = await client.get(url)
-    return r.text
+    async with httpx.AsyncClient() as client:
+        r = await client.get(url)
+        return r.text
 
 
 def parse_opengraph(body: str):
