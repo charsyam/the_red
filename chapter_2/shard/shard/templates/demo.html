@@ -1,0 +1,39 @@
+<html>
+<head>
+    <title>Consistent Hash Demo</title>
+    <style>
+  table {
+    width: 100%;
+    border: 1px solid #444444;
+    border-collapse: collapse;
+  }
+  th, td {
+    border: 1px solid #444444;
+  }
+    </style>
+</head>
+<body>
+<table>
+<tr>
+<th>Host</th>
+<th>Range</th>
+<th>Keys</th>
+</tr>
+{% for result in results %}
+<tr>
+<td>
+{{ result[0] }}
+</td>
+<td>
+{{ result[1] }}
+</td>
+<td>
+{% for hash in result[2] %}
+{{ hash }} <br>
+{% endfor %}
+</td>
+</tr>
+{% endfor %}
+</table>
+</body>
+</html>

@@ -6,7 +6,6 @@ from pydantic import BaseModel
 
 import sys
 import json
-import redis
 
 
 from datetime import datetime
@@ -23,6 +22,7 @@ from cors import init_cors
 from instrumentator import init_instrumentator
 from zoo import init_kazoo
 from config import Config
+from redis_conn import RedisConnection
 
 
 pconn = None
@@ -37,11 +37,8 @@ def refresh_storage(data, stat):
     print(hosts)
     h1 = hosts["primary"] 
 
-    conn1 = redis.from_url(f"redis://{h1}/")
-
     global pconn
-    pconn = conn1
-
+    pconn = RedisConnection(h1)
     print("Finished refresh_storage")
 
 
@@ -72,8 +69,8 @@ async def unicorn_exception_handler(request: Request, exc: UnicornException):
 async def write(user_id: int, value: str):
     try:
         key = f"k:{user_id}"
-        pconn.set(key, value)
-        return {"code": 200, "user_id": user_id, "value": value}
+        pconn.get_conn().set(key, value)
+        return {"user_id": user_id, "value": value}
     except Exception as e:
         traceback.print_exc(file=sys.stderr)
         raise UnicornException(status=400, code=-20000, message=str(e))
@@ -83,13 +80,13 @@ async def write(user_id: int, value: str):
 async def get(user_id: int):
     try:
         key = f"k:{user_id}"
-        value = pconn.get(key)
+        value = pconn.get_conn().get(key)
         
         result = None
         if value:
             result = value.decode('utf-8')
 
-        return {"code": 200, "user_id": user_id, "value": result}
+        return {"user_id": user_id, "value": result}
 
     except Exception as e:
         traceback.print_exc(file=sys.stderr)

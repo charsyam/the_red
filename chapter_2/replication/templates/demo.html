@@ -1,0 +1,33 @@
+<html>
+<head>
+    <title>Url List Demo</title>
+    <style>
+  table {
+    width: 100%;
+    border: 1px solid #444444;
+    border-collapse: collapse;
+  }
+  th, td {
+    border: 1px solid #444444;
+  }
+    </style>
+</head>
+<body>
+<table>
+<tr>
+<th>Uid</th>
+<th>Url</th>
+</tr>
+{% for result in results %}
+<tr>
+<td>
+{{ result["uid"] }}
+</td>
+<td>
+{{ result["url"] }}
+</td>
+</tr>
+{% endfor %}
+</table>
+</body>
+</html>

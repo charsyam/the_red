@@ -1,5 +1,7 @@
 import typing
 
+from redis_conn import RedisConnection
+
 
 INFINITE = -1
 
@@ -62,3 +64,28 @@ class RangeShardPolicy(ShardPolicy):
                 return info.get()
 
         return None
+
+
+class RangeShardManager:
+    def __init__(self, policy):
+        self.policy = policy
+        try:
+            connections = {}
+            for info in policy.infos:
+                parts = info.host.split(':')
+                conn = RedisConnection(f"{parts[1]}:{parts[2]}")
+                connections[info.host] = conn
+
+            self.connections = connections
+        except Exception as e:
+            print(str(e))
+       
+    def get_policy(self):
+        return self.policy
+
+    def get_conn_by_host(self, host: str):
+        return self.connections[host].get_conn()
+
+    def get_conn(self, key: int):
+        host = self.policy.getShardInfo(key)
+        return self.connections[host].get_conn()

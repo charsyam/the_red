@@ -1,0 +1,22 @@
+version: '3.1'
+services:
+  the_red_redis1:
+    image: redis:6.0.6
+    hostname: localhost
+    ports:
+    - 16379:6379
+  the_red_redis2:
+    image: redis:6.0.6
+    hostname: localhost
+    ports:
+    - 16380:6379
+  the_red_redis3:
+    image: redis:6.0.6
+    hostname: localhost
+    ports:
+    - 16381:6379
+  the_red_redis4:
+    image: redis:6.0.6
+    hostname: localhost
+    ports:
+    - 16382:6379
