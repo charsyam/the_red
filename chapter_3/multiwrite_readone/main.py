@@ -17,6 +17,7 @@ import sys
 import json
 import random
 import mmh3
+import traceback
 
 from exceptions import UnicornException
 from settings import Settings
@@ -64,18 +65,19 @@ class MultiCache:
         return idx, conn.get(key)
 
 
-def refresh_cache_hosts(nodes):
-    connections = {}
-    print("Nodes: ", nodes)
+def refresh_cache_hosts(data, stat):
+    print("data: ", data)
+    nodes = json.loads(data.decode('utf-8'))
     if not nodes or len(nodes) == 0:
         print("There is no redis nodes")
         return
 
+    
     replica = 2
-    ch = MultiCache(nodes, replica)
+    mc = MultiCache(nodes, replica)
 
-    global g_ch
-    g_ch = ch
+    global g_mc
+    g_mc = mc
     print("Finished refresh redis nodes")
 
 
@@ -87,8 +89,8 @@ ZK_DATA_PATH = "/the_red/cache/redis/scrap"
 init_log(app, conf.section("log")["path"])
 init_cors(app)
 init_instrumentator(app)
-g_ch = None
-zk = init_kazoo(conf.section("zookeeper")["hosts"], ZK_DATA_PATH, refresh_cache_hosts)
+g_mc = None
+zk = init_kazoo(conf.section("zookeeper")["hosts"], ZK_DATA_PATH, refresh_cache_hosts, False)
 
 client = httpx.AsyncClient()
 templates = Jinja2Templates(directory="templates/")
@@ -96,6 +98,7 @@ templates = Jinja2Templates(directory="templates/")
 
 @app.exception_handler(UnicornException)
 async def unicorn_exception_handler(request: Request, exc: UnicornException):
+    traceback.print_exc(file=sys.stderr)
     return JSONResponse(
         status_code=exc.status,
         content={"code": exc.code, "message": exc.message},
@@ -131,17 +134,17 @@ def parse_opengraph(body: str):
 
 
 def set_to_cache(url: str, value: str):
-    global g_ch
+    global g_mc
 
     key = f"url:{url}"
-    g_ch.set(key, json.dumps(value))
+    g_mc.set(key, json.dumps(value))
 
 
 def get_from_cache(url: str):
-    global g_ch
+    global g_mc
 
     key = f"url:{url}"
-    idx, value = g_ch.get(key)
+    idx, value = g_mc.get(key)
     if value:
         return idx, json.loads(value.decode('utf-8'))
 
@@ -175,9 +178,9 @@ def all_keys(conn):
 
 @app.get("/demo")
 async def demo(request: Request):
-    global g_ch
+    global g_mc
     results = []
-    for host, conn in g_ch.conns:
+    for host, conn in g_mc.conns:
         try:
             keys = all_keys(conn.get_conn())
             results.append((host, keys))

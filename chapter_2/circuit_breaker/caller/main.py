@@ -27,10 +27,8 @@ init_log(app, conf.section("log")["path"])
 init_cors(app)
 init_instrumentator(app)
 
-client = httpx.AsyncClient()
 
-
-cb = aiobreaker.CircuitBreaker(fail_max=3, timeout_duration=timedelta(seconds=5))
+cb = aiobreaker.CircuitBreaker(fail_max=3, timeout_duration=timedelta(seconds=20))
 
 
 @app.exception_handler(UnicornException)
@@ -46,8 +44,9 @@ async def call_api(url: str):
     endpoint = conf.section("scrap")["endpoint"]
     encoded_url = urllib.parse.quote(url)
     url = f"http://{endpoint}/api/v1/scrap?url={encoded_url}"
-    r = await client.get(url)
-    return endpoint, r.text
+    async with httpx.AsyncClient(timeout=2) as client:
+        r = await client.get(url)
+        return endpoint, r.text
     
 
 @app.get("/api/v1/scrap/")

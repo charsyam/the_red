@@ -31,14 +31,12 @@ settings = Settings()
 init_cors(app)
 init_instrumentator(app)
 
-client = httpx.AsyncClient()
-
 API_MAXIMUM_NUMBER = 10
 N_MINUTES = 5
 SECONDS = 60
 
 
-rconn = redis.StrictRedis("192.168.0.102", 6379)
+rconn = redis.StrictRedis("127.0.0.1", 16379)
 
 
 @app.exception_handler(UnicornException)
@@ -50,8 +48,9 @@ async def unicorn_exception_handler(request: Request, exc: UnicornException):
 
 
 async def call_api(url: str):
-    r = await client.get(url)
-    return r.text
+    async with httpx.AsyncClient() as client:
+        r = await client.get(url)
+        return r.text
 
 
 def parse_opengraph(body: str):
@@ -77,12 +76,15 @@ def parse_opengraph(body: str):
     return resp
 
 
+def gen_key_prefix(uid):
+    return f"l:scrap:{uid}:"
+
 def get_api_count(uid):
     keys = []
     now = datetime.now() 
 
     for i in range(N_MINUTES):
-        key = f"l:{uid}:" + (now + timedelta(minutes=-1*i)).strftime("%Y%m%d%H%M")
+        key = gen_key_prefix(uid) + (now + timedelta(minutes=-1*i)).strftime("%Y%m%d%H%M")
         keys.append(key)
 
     values = rconn.mget(keys)
@@ -97,7 +99,7 @@ def get_api_count(uid):
 
 def incr_api_count(uid):
     now = datetime.now() 
-    key = f"l:{uid}:" + now.strftime("%Y%m%d%H%M")
+    key = gen_key_prefix(uid) + now.strftime("%Y%m%d%H%M")
     v = rconn.incrby(key)
     rconn.expire(key, N_MINUTES * SECONDS)
     return v
@@ -117,7 +119,7 @@ async def scrap(uid: int, url: str):
         url = urllib.parse.unquote(url)
         body = await call_api(url)
         value = parse_opengraph(body)
-
+        value["api_count"] = count
         return value
     except Exception as e:
         raise UnicornException(status=400, code=-20000, message=str(e))

@@ -10,6 +10,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 import urllib.parse
+import time
 
 from exceptions import UnicornException
 from settings import Settings
@@ -29,8 +30,6 @@ init_cors(app)
 init_instrumentator(app)
 
 
-client = httpx.AsyncClient()
-
 @app.exception_handler(UnicornException)
 async def unicorn_exception_handler(request: Request, exc: UnicornException):
     return JSONResponse(
@@ -39,8 +38,9 @@ async def unicorn_exception_handler(request: Request, exc: UnicornException):
     )
 
 async def call_api(url: str):
-    r = await client.get(url)
-    return r.text
+    async with httpx.AsyncClient() as client:
+        r = await client.get(url)
+        return r.text
 
 
 def parse_opengraph(body: str):
@@ -69,6 +69,7 @@ def parse_opengraph(body: str):
 @app.get("/api/v1/scrap/")
 async def scrap(url: str):
     try:
+#        time.sleep(5)
         url = urllib.parse.unquote(url)
         body = await call_api(url)
         return parse_opengraph(body)
