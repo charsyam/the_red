@@ -36,14 +36,9 @@ init_log(app, conf.section("log")["path"])
 init_cors(app)
 init_instrumentator(app)
 
-client = httpx.AsyncClient()
-
 
 def conn_to_redis(conf):
-    addr = conf.section("redis")
-    host = addr['host']
-    port = addr['port']
-    addr = f"{host}:{port}"
+    addr = conf.section("redis")["host"]
     return RedisConnection(addr)
 
 
@@ -59,8 +54,9 @@ async def unicorn_exception_handler(request: Request, exc: UnicornException):
 
 
 async def call_api(url: str):
-    r = await client.get(url)
-    return r.text
+    async with httpx.AsyncClient() as client:
+        r = await client.get(url)
+        return r.text
 
 
 def parse_opengraph(body: str):
@@ -86,7 +82,7 @@ def parse_opengraph(body: str):
     return resp
 
 
-def set_cache(url, value, ttl=10):
+def set_cache(url, value, ttl=3):
     key = f"url:{url}"
     rconn.get_conn().setex(key, ttl, json.dumps(value))
 
@@ -105,7 +101,7 @@ def xfetch(url):
         r1 = random()
         l1 = log(r1)
         c1 = abs(int(DELTA * BETA * l1))
-        print(c1 > ttl_ms, ttl_ms, c1, r1, l1)
+        print("c1 > ttl_ms: ", c1 > ttl_ms, "ttl_ms: ", ttl_ms, "c1: ", c1, "random: ", r1, "log(random()): ", l1)
         if c1 < ttl_ms:
             v = conn.get(key)
 
@@ -121,10 +117,12 @@ async def scrap(url: str):
         url = urllib.parse.unquote(url)
         results = xfetch(url)
         if results:
+            print("Cache Hit: ", url)
             return results
 
         body = await call_api(url)
         results = parse_opengraph(body)
+        print("Cache Miss: ", url)
         set_cache(url, results)
         return results
     except Exception as e:
