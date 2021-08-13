@@ -9,25 +9,33 @@ from config import Config
 import crud
 import models
 import database
+import httpx
+import sys
+import traceback
+from zoo import init_kazoo
+
+
+conf = Config(sys.argv[1])
 
 
 def get_db():
     return database.Session()
 
+
 class MyEventWorker(Worker):
     def __init__(self, queue, failed_queue):
         super().__init__(queue, failed_queue)
 
-    def _process(self, event_type, value):
+    def on_event(self, event_type, value):
+        user_id = value["user_id"]
         url = value["url"]
-        scrap = json.dumps(value["scrap"])
+        user_id = value["user_id"]
         contents = value["contents"]
         post_id = value["post_id"]
+        scrap = json.dumps(value["scrap"]) if "scrap" in value else {}
 
-        print("scrap :", scrap)
-        post = crud.create_post(post_id, contents, url, scrap)
-        crud.insert(get_db(), post)
-        print(event_type, value)
+        post = crud.add(get_db(), user_id, post_id, contents, url, scrap)
+        print("log :", event_type, value)
 
 
 dbconf = Config("worker.ini").section("database")
