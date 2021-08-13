@@ -1,38 +1,32 @@
 version: '3.1'
 services:
-  zookeeper:
-    container_name: the-red-zookeeper
-    image: zookeeper
+  the_red_redis_1:
+    image: redis:6.0.6
+    hostname: localhost
     ports:
-      - "2181:2181"
-  zk-web:
-    container_name: the-red-zk-web
-    image: goodguide/zk-web
+    - 16380:6379
+  the_red_redis_2:
+    image: redis:6.0.6
+    hostname: localhost
     ports:
-      - "18081:8080"
-    environment:
-      - ZKWEB_PORT=8080
-      - ZKWEB_CREDENTIALS=admin:the_red
+    - 16381:6379
+  the_red_redis_3:
+    image: redis:6.0.6
+    hostname: localhost
+    ports:
+    - 16382:6379
   the_red_redis_queue_primary:
     image: redis:6.0.6
     hostname: localhost
     ports:
     - 16379:6379
-    container_name: the_red_redis_queue_primary
-  the_red_redis_queue_replica:
-    image: redis:6.0.6
-    hostname: localhost
-    ports:
-    - 16380:6379
-    container_name: the_red_redis_queue_replica
   the_red_sidekiq:
     image: ascensionit/sidekiq-web
     hostname: localhost
     container_name: the_red_sidekiq
     environment:
       REDIS_HOST: 127.0.0.1
-      REDIS_PORT: 7379
-    network_mode: "host"
+      REDIS_PORT: 16379
   the_red_mysql:
     build:
       context: .
