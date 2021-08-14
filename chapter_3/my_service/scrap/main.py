@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from datetime import datetime
 import sys
 import httpx
+import socket
 
 from bs4 import BeautifulSoup
 
@@ -33,6 +34,14 @@ zk = init_kazoo(conf.section("zookeeper")["hosts"], None, None)
 ZK_PATH = conf.section("zookeeper")["path"]
 
 
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    self_ip = s.getsockname()[0]
+    s.close()
+    return self_ip
+
+
 @app.exception_handler(UnicornException)
 async def unicorn_exception_handler(request: Request, exc: UnicornException):
     import traceback
@@ -41,6 +50,7 @@ async def unicorn_exception_handler(request: Request, exc: UnicornException):
         status_code=exc.status,
         content={"code": exc.code, "message": exc.message},
     )
+
 
 async def call_api(url: str):
     async with httpx.AsyncClient() as client:
@@ -90,4 +100,8 @@ def register_into_service_discovery(endpoint):
 
 @app.on_event("startup")
 def startup():
-    register_into_service_discovery(my_settings.APP_ENDPOINT)
+    parts = my_settings.APP_ENDPOINT.split(":")
+    local_ip = get_local_ip()
+
+    endpoints = f"{local_ip}:{parts[1]}"
+    register_into_service_discovery(endpoints)
